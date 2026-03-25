@@ -7,3 +7,21 @@
 venv/
 .venv/
 raw_data.json
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+*.log
+logs/
+
+# Tests
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Données exportées
+*.csv
+*.xlsx
+
+# Docker
+.docker/
