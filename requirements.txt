@@ -10,3 +10,6 @@ pytest==7.4.3
 flask-swagger-ui==4.11.1
 prometheus-flask-exporter==0.23.0
 python-dotenv==1.0.0
+flask-sqlalchemy==3.1.1
+celery[redis]==5.3.4
+flasgger==0.9.7.1
