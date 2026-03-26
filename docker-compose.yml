@@ -1,0 +1,148 @@
+# docker-compose.yml
+version: "3.9"
+
+services:
+
+  # ================================
+  # BASE DE DONNÉES POSTGRESQL
+  # ================================
+  db:
+    image: postgres:15
+    container_name: observatoire_db
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      # Persistance des données même si le conteneur redémarre
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      # Vérifie que PostgreSQL est prêt avant de lancer les autres services
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ================================
+  # REDIS — BROKER CELERY
+  # ================================
+  redis:
+    image: redis:7-alpine
+    container_name: observatoire_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ================================
+  # API FLASK
+  # ================================
+  api:
+    build: .
+    container_name: observatoire_api
+    restart: always
+    env_file: .env
+    ports:
+      - "5000:5000"
+    volumes:
+      # Synchronise le code local avec le conteneur
+      # Utile en développement : pas besoin de rebuilder à chaque modification
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+
+  # ================================
+  # CELERY WORKER — TÂCHES ASYNCHRONES
+  # ================================
+  celery_worker:
+    build: .
+    container_name: observatoire_celery_worker
+    restart: always
+    # Commande différente de l'API : lance Celery au lieu de Flask
+    command: celery -A tasks.celery_tasks worker --loglevel=info
+    env_file: .env
+    volumes:
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+
+  # ================================
+  # CELERY BEAT — PLANIFICATEUR AUTOMATIQUE
+  # ================================
+  celery_beat:
+    build: .
+    container_name: observatoire_celery_beat
+    restart: always
+    # Lance Celery Beat pour les tâches planifiées
+    command: celery -A tasks.celery_tasks beat --loglevel=info
+    env_file: .env
+    volumes:
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+
+  # ================================
+  # PROMETHEUS — COLLECTE DES MÉTRIQUES
+  # ================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: observatoire_prometheus
+    restart: always
+    ports:
+      - "9090:9090"
+    volumes:
+      # Fichier de config Prometheus qu'on va créer juste après
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on:
+      - api
+
+  # ================================
+  # GRAFANA — DASHBOARDS
+  # ================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: observatoire_grafana
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+# ================================
+# VOLUMES — PERSISTANCE DES DONNÉES
+# ================================
+volumes:
+  postgres_data:
+  grafana_data:
