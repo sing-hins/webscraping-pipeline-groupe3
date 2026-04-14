@@ -1,0 +1,126 @@
+version: "3.9"
+
+services:
+
+  # ── MySQL ──────────────────────────────────────────────
+  db:
+    image: mysql:8.0
+    container_name: webscraping_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
+      MYSQL_DATABASE:      ${MYSQL_DATABASE:-webscraping_db}
+      MYSQL_USER:          ${MYSQL_USER:-ensea}
+      MYSQL_PASSWORD:      ${MYSQL_PASSWORD:-ensea2024}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis (broker Celery) ──────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: webscraping_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── API Flask ──────────────────────────────────────────
+  api:
+    build: .
+    container_name: webscraping_api
+    restart: always
+    command: python api/app.py
+    ports:
+      - "5000:5000"
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+
+  # ── Celery Worker ──────────────────────────────────────
+  worker:
+    build: .
+    container_name: webscraping_worker
+    restart: always
+    command: celery -A tasks.celery_tasks worker --loglevel=info
+    env_file: .env
+    depends_on:
+      - redis
+      - db
+    volumes:
+      - .:/app
+
+  # ── Celery Beat (planificateur) ────────────────────────
+  beat:
+    build: .
+    container_name: webscraping_beat
+    restart: always
+    command: celery -A tasks.celery_tasks beat --loglevel=info
+    env_file: .env
+    depends_on:
+      - redis
+      - worker
+    volumes:
+      - .:/app
+
+  # ── Flower (monitoring Celery) ─────────────────────────
+  flower:
+    build: .
+    container_name: webscraping_flower
+    restart: always
+    command: celery -A tasks.celery_tasks flower --port=5555
+    ports:
+      - "5555:5555"
+    env_file: .env
+    depends_on:
+      - redis
+
+  # ── Prometheus ─────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: webscraping_prometheus
+    restart: always
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+
+  # ── Grafana ────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    container_name: webscraping_grafana
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER:     ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+
+volumes:
+  mysql_data:
+  prometheus_data:
+  grafana_data:

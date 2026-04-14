@@ -1,0 +1,28 @@
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'ensea-webscraping'
+
+scrape_configs:
+
+  # API Flask (métriques exposées via /metrics)
+  - job_name: 'flask_api'
+    static_configs:
+      - targets: ['api:5000']
+    metrics_path: '/metrics'
+
+  # Celery via Flower
+  - job_name: 'celery'
+    static_configs:
+      - targets: ['flower:5555']
+
+  # Redis
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+
+  # Prometheus lui-même
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

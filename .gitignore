@@ -1,9 +1,26 @@
-﻿__pycache__/
+﻿# Python
+venv/
+__pycache__/
 *.pyc
 *.pyo
+
+# Logs
+*.log
+scraper.log
+
+# Sensible
 .env
-*.sqlite3
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
 .DS_Store
-venv/
-.venv/
-raw_data.json
+Thumbs.db
+
+# Données volumineuses (optionnel - à discuter avec l'équipe)
+# raw_data.json
+# commodities_data.csv
+# clean_data.json

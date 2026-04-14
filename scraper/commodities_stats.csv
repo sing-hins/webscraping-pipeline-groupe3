@@ -1,0 +1,13 @@
+﻿categorie,matiere,unite,nb_observations,prix_min,prix_max,prix_moyen,prix_median,ecart_type,date_debut,date_fin
+commodities,cocoa,USD/kg,469,2.78,4.24,3.4393,3.48,0.28,2024-03-18,2026-04-13
+commodities,coffee,USD/lb,499,1.99,319.15,19.3122,3.4,67.2864,2024-05-14,2026-04-13
+commodities,corn,USD/bushel,499,3.67,5.02,4.3203,4.31,0.2913,2024-05-14,2026-04-13
+commodities,sugar,USD/lb,499,0.14,0.24,0.1767,0.18,0.0248,2024-05-14,2026-04-13
+commodities,wheat,USD/bushel,499,5.42,7.95,6.3589,6.3,0.355,2024-05-15,2026-04-14
+energy,brent_crude,USD/barrel,500,59.93,127.61,74.4656,73.165,10.2522,2024-04-15,2026-04-02
+energy,crude_oil,USD/barrel,500,10.25,139.96,47.8244,40.985,29.2965,1984-09-01,2026-04-01
+energy,natural_gas,USD/MMBtu,352,1.54,14.84,4.0836,3.35,2.1804,1997-01-31,2026-04-06
+metals,copper,USD/lb,499,3.98,6.18,4.8191,4.66,0.5733,2024-05-15,2026-04-14
+metals,gold,USD/oz,500,254.6,5277.89,939.6082,470.325,801.8783,1984-09-01,2026-04-01
+metals,platinum,USD/oz,499,896.2,2734.72,1314.8189,1033.1,461.8404,2024-05-14,2026-04-13
+metals,silver,USD/oz,500,3.57,113.95,13.7725,7.765,12.4284,1984-09-01,2026-04-01
