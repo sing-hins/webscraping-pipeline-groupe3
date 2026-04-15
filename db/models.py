@@ -57,13 +57,33 @@ class Commodity(Base):
 # ─────────────────────────────────────────────────────────
 # CONNEXION À LA BASE
 # ─────────────────────────────────────────────────────────
+
+class ScrapingLog(Base):
+    __tablename__ = "scraping_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    status = Column(String(20))
+    nb_lignes = Column(Integer)
+    erreurs = Column(String(500))
+    started_at = Column(DateTime, default=datetime.now)
+    finished_at = Column(DateTime)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "status": self.status,
+            "nb_lignes": self.nb_lignes,
+            "erreurs": self.erreurs,
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+            "finished_at": self.finished_at.isoformat() if self.finished_at else None,
+        }
 def get_db_url():
     """Construit l'URL de connexion PostgreSQL depuis .env"""
-    db_user = os.getenv("DB_USER", "postgres")
-    db_password = os.getenv("DB_PASSWORD", "postgres")
-    db_host = os.getenv("DB_HOST", "localhost")
-    db_port = os.getenv("DB_PORT", "5432")
-    db_name = os.getenv("DB_NAME", "commodities_db")
+    db_user = os.getenv("POSTGRES_USER", "postgres")
+    db_password = os.getenv("POSTGRES_PASSWORD", "postgres")
+    db_host = os.getenv("POSTGRES_HOST", "db")
+    db_port = os.getenv("POSTGRES_PORT", "5432")
+    db_name = os.getenv("POSTGRES_DB", "commodities_db")
     
     return f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
 

@@ -1,0 +1,47 @@
+openapi: 3.0.0
+info:
+  title: Commodities Scraping API
+  description: API pour consulter les prix des matières premières
+  version: 1.0.0
+servers:
+  - url: http://localhost:5000
+paths:
+  /data:
+    get:
+      summary: Récupère toutes les données
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+          description: Numéro de page
+        - name: limit
+          in: query
+          schema:
+            type: integer
+          description: Nombre d'éléments par page
+        - name: categorie
+          in: query
+          schema:
+            type: string
+          description: Filtrer par catégorie
+        - name: matiere
+          in: query
+          schema:
+            type: string
+          description: Filtrer par matière
+      responses:
+        '200':
+          description: Succès
+  /stats:
+    get:
+      summary: Statistiques par matière
+      responses:
+        '200':
+          description: Succès
+  /data/categories:
+    get:
+      summary: Liste des catégories
+      responses:
+        '200':
+          description: Succès

@@ -19,15 +19,22 @@ log = logging.getLogger(__name__)
 # APP FLASK
 # ─────────────────────────────────────────────────────────
 app = Flask(__name__)
+from prometheus_flask_exporter import PrometheusMetrics
+
+metrics = PrometheusMetrics(app)
 
 # ─────────────────────────────────────────────────────────
 # DB SESSION
 # ─────────────────────────────────────────────────────────
 def get_session():
-    url = os.getenv(
-        "DATABASE_URL",
-        "mysql+pymysql://root:@localhost:3306/webscraping_db"
-    )
+    # Connexion PostgreSQL
+    db_user = os.getenv("POSTGRES_USER", "postgres")
+    db_password = os.getenv("POSTGRES_PASSWORD", "postgres")
+    db_host = os.getenv("POSTGRES_HOST", "db")
+    db_port = os.getenv("POSTGRES_PORT", "5432")
+    db_name = os.getenv("POSTGRES_DB", "commodities_db")
+    
+    url = f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
     engine = create_engine(url, echo=False)
     Session = sessionmaker(bind=engine)
     return Session()
