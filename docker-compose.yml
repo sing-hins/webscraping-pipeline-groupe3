@@ -46,6 +46,10 @@ services:
         condition: service_healthy
     volumes:
       - .:/app
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
 
   worker:
     build: .
@@ -54,10 +58,16 @@ services:
     command: celery -A tasks.celery_tasks worker --loglevel=info
     env_file: .env
     depends_on:
-      - redis
-      - db
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
       - .:/app
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
 
   beat:
     build: .
@@ -66,10 +76,16 @@ services:
     command: celery -A tasks.celery_tasks beat --loglevel=info
     env_file: .env
     depends_on:
-      - redis
-      - worker
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
       - .:/app
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
 
   flower:
     build: .
@@ -94,7 +110,9 @@ services:
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
-
+    depends_on:
+      - api
+      
   grafana:
     image: grafana/grafana:latest
     container_name: webscraping_grafana
