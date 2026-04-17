@@ -135,6 +135,8 @@ MATIERES = {
 # ─────────────────────────────────────────────────────────
 # INITIALISATION DU NAVIGATEUR
 # ─────────────────────────────────────────────────────────
+from selenium.webdriver.chrome.service import Service
+
 def init_driver():
     options = Options()
     options.add_argument("--headless")
@@ -147,10 +149,16 @@ def init_driver():
     options.add_experimental_option('useAutomationExtension', False)
     options.add_argument(f"user-agent={USER_AGENT}")
     
-    driver = webdriver.Chrome(options=options)
+    # ----- AJOUT POUR DOCKER -----
+    # Indiquer le chemin de Chromium (installé dans l'image)
+    options.binary_location = "/usr/bin/chromium"
+    # Indiquer le chemin du chromedriver
+    service = Service(executable_path="/usr/bin/chromedriver")
+    # -----------------------------
+    
+    driver = webdriver.Chrome(service=service, options=options)
     driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
     return driver
-
 # ─────────────────────────────────────────────────────────
 # SUPPRIMER LES OVERLAYS (VERSION CORRIGÉE)
 # ─────────────────────────────────────────────────────────
