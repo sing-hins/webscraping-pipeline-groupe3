@@ -465,6 +465,21 @@ def serve_frontend():
     return send_from_directory('../frontend', 'index.html')
 
 # ─────────────────────────────────────────────────────────
+# Frontend celery_app
+# ─────────────────────────────────────────────────────────
+
+from tasks.celery_tasks import celery_app
+
+@app.route('/celery/status')
+def celery_status():
+    inspect = celery_app.control.inspect()
+    stats = inspect.stats()
+    active = inspect.active()
+    return jsonify({
+        'workers': list(stats.keys()) if stats else [],
+        'active_tasks': len(active) if active else 0
+    })
+# ─────────────────────────────────────────────────────────
 # LANCEMENT
 # ─────────────────────────────────────────────────────────
 if __name__ == "__main__":
