@@ -381,7 +381,7 @@
         setTimeout(() => toastDiv.classList.remove('show'), 4000);
     }
 
-    // Helper : charger les métriques
+    // Charger les métriques (statistiques)
     async function loadMetrics() {
         try {
             const res = await fetch(`${API_BASE}/stats`);
@@ -392,7 +392,6 @@
                 const gold = json.data.find(m => m.matiere === 'gold');
                 if (gold) document.getElementById('lastGoldPrice').innerText = `${gold.prix_moyen?.toFixed(2) || '—'} USD/oz`;
                 
-                // Dernier scraping (on peut aussi appeler /logs)
                 const logsRes = await fetch(`${API_BASE}/logs?limit=1`);
                 const logsJson = await logsRes.json();
                 if (logsJson.status === 'success' && logsJson.data.length > 0) {
@@ -403,16 +402,28 @@
         } catch(e) { console.error(e); }
     }
 
-    // Charger les données avec filtres
+    // Charger les données avec filtres (version corrigée)
     async function loadData(page = 1) {
         currentPage = page;
+        // Récupérer les valeurs actuelles des champs
+        const categorieValue = document.getElementById('categorie').value;
+        const matiereValue = document.getElementById('matiere').value;
+        const anneeValue = document.getElementById('annee').value;
+        
+        // Mettre à jour currentFilters
+        currentFilters.categorie = categorieValue;
+        currentFilters.matiere = matiereValue;
+        currentFilters.annee = anneeValue;
+        
         const params = new URLSearchParams();
         params.append('page', currentPage);
         params.append('limit', limit);
         if (currentFilters.categorie) params.append('categorie', currentFilters.categorie);
         if (currentFilters.matiere) params.append('matiere', currentFilters.matiere);
         if (currentFilters.annee) params.append('annee', currentFilters.annee);
-
+        
+        console.log('Requête API :', `${API_BASE}/data?${params.toString()}`); // Débogage
+        
         try {
             const response = await fetch(`${API_BASE}/data?${params.toString()}`);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -467,7 +478,7 @@
         });
     }
 
-    // Mettre à jour le graphique avec les 30 derniers points
+    // Mettre à jour le graphique
     function updateChart(data) {
         if (!priceChart) {
             const ctx = document.getElementById('priceChart').getContext('2d');
@@ -477,7 +488,6 @@
                 options: { responsive: true, maintainAspectRatio: true }
             });
         }
-        // Regrouper par matière et prendre les 30 derniers
         const grouped = {};
         data.forEach(item => {
             if (!grouped[item.matiere]) grouped[item.matiere] = [];
@@ -528,7 +538,7 @@
             const response = await fetch(`${API_BASE}/scrape/async`, { method: 'POST' });
             const result = await response.json();
             if (response.ok) {
-                showToast(`Task ID: ${result.task_id}. Surveillance en cours...`);
+                showToast(`Task ID: ${result.task_id}. Surveillance...`);
                 pollTaskStatus(result.task_id);
             } else {
                 throw new Error(result.message);
@@ -544,7 +554,7 @@
                 const res = await fetch(`${API_BASE}/scrape/status/${taskId}`);
                 const data = await res.json();
                 if (data.status === 'SUCCESS') {
-                    showToast(`✅ Tâche ${taskId} terminée avec succès !`);
+                    showToast(`✅ Tâche ${taskId} terminée !`);
                     clearInterval(interval);
                     loadData(1);
                     loadMetrics();
@@ -580,10 +590,7 @@
 
     // Événements
     loadDataBtn.addEventListener('click', () => {
-        currentFilters.categorie = document.getElementById('categorie').value;
-        currentFilters.matiere = document.getElementById('matiere').value;
-        currentFilters.annee = document.getElementById('annee').value;
-        loadData(1);
+        loadData(1);  // recharge avec les nouveaux filtres
     });
     scrapeAsyncBtn.addEventListener('click', runScrapeAsync);
     scrapeSyncBtn.addEventListener('click', runScrapeSync);
@@ -598,7 +605,7 @@
     // Chargement initial
     loadData();
     loadMetrics();
-    // Auto-refresh toutes les 30 secondes
+    // Auto-refresh toutes les 30 secondes (optionnel, peut être désactivé)
     setInterval(() => { loadData(currentPage); loadMetrics(); }, 30000);
 </script>
 </body>
