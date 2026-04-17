@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Commodities Dashboard - Pipeline Web Scraping</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Matières premières - Dashboard</h1>
+        
+        <!-- Panneau de contrôle -->
+        <div class="controls">
+            <div class="filters">
+                <select id="categorie">
+                    <option value="">Toutes catégories</option>
+                    <option value="metals">Métaux</option>
+                    <option value="energy">Énergie</option>
+                    <option value="commodities">Commodités agricoles</option>
+                </select>
+                <input type="text" id="matiere" placeholder="Matière (ex: gold, corn)">
+                <button id="loadDataBtn">🔍 Charger les données</button>
+            </div>
+            <div class="actions">
+                <button id="scrapeAsyncBtn" class="scrape-btn">🚀 Lancer un scraping (async)</button>
+                <button id="scrapeSyncBtn" class="scrape-btn">⏳ Lancer un scraping (synchrone)</button>
+                <button id="viewLogsBtn">📜 Voir les logs</button>
+            </div>
+        </div>
+
+        <!-- Zone de résultat / message -->
+        <div id="message" class="message"></div>
+
+        <!-- Tableau des données -->
+        <div class="table-container">
+            <table id="dataTable">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Matière</th>
+                        <th>Catégorie</th>
+                        <th>Prix (USD)</th>
+                        <th>Unité</th>
+                        <th>Source</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <tr><td colspan="6">Chargement en cours...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination" id="pagination"></div>
+
+        <!-- Logs (caché par défaut) -->
+        <div id="logsPanel" style="display: none;">
+            <h2>📋 Historique des exécutions</h2>
+            <div id="logsContent"></div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_BASE = 'http://localhost:5000';  // Adresse de votre API Flask
+        let currentPage = 1;
+        let currentLimit = 20;
+        let currentFilters = { categorie: '', matiere: '' };
+        let totalPages = 1;
+
+        // Éléments DOM
+        const tableBody = document.getElementById('tableBody');
+        const loadDataBtn = document.getElementById('loadDataBtn');
+        const scrapeAsyncBtn = document.getElementById('scrapeAsyncBtn');
+        const scrapeSyncBtn = document.getElementById('scrapeSyncBtn');
+        const viewLogsBtn = document.getElementById('viewLogsBtn');
+        const messageDiv = document.getElementById('message');
+        const logsPanel = document.getElementById('logsPanel');
+        const logsContent = document.getElementById('logsContent');
+        const paginationDiv = document.getElementById('pagination');
+
+        // Afficher un message temporaire
+        function showMessage(text, isError = false) {
+            messageDiv.textContent = text;
+            messageDiv.className = isError ? 'message error' : 'message success';
+            setTimeout(() => {
+                messageDiv.textContent = '';
+                messageDiv.className = 'message';
+            }, 5000);
+        }
+
+        // Charger les données avec les filtres et la pagination
+        async function loadData(page = 1) {
+            currentPage = page;
+            const params = new URLSearchParams();
+            params.append('page', currentPage);
+            params.append('limit', currentLimit);
+            if (currentFilters.categorie) params.append('categorie', currentFilters.categorie);
+            if (currentFilters.matiere) params.append('matiere', currentFilters.matiere);
+
+            try {
+                const response = await fetch(`${API_BASE}/data?${params.toString()}`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    renderTable(result.data);
+                    renderPagination(result.pagination);
+                } else {
+                    throw new Error(result.message || 'Erreur inconnue');
+                }
+            } catch (error) {
+                console.error(error);
+                tableBody.innerHTML = `<tr><td colspan="6">Erreur : ${error.message}</td></tr>`;
+            }
+        }
+
+        // Remplir le tableau
+        function renderTable(data) {
+            if (!data || data.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="6">Aucune donnée trouvée</td></tr>';
+                return;
+            }
+            tableBody.innerHTML = data.map(item => `
+                <tr>
+                    <td>${item.date || ''}</td>
+                    <td>${item.matiere || ''}</td>
+                    <td>${item.categorie || ''}</td>
+                    <td>${item.prix?.toFixed(2) || ''}</td>
+                    <td>${item.unite || ''}</td>
+                    <td>${item.source ? item.source.substring(0, 40) + '…' : ''}</td>
+                </tr>
+            `).join('');
+        }
+
+        // Créer les boutons de pagination
+        function renderPagination(pagination) {
+            if (!pagination || pagination.pages <= 1) {
+                paginationDiv.innerHTML = '';
+                return;
+            }
+            let html = '';
+            for (let i = 1; i <= pagination.pages; i++) {
+                html += `<button class="page-btn ${i === currentPage ? 'active' : ''}" data-page="${i}">${i}</button>`;
+            }
+            paginationDiv.innerHTML = html;
+            document.querySelectorAll('.page-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const page = parseInt(e.target.dataset.page);
+                    loadData(page);
+                });
+            });
+        }
+
+        // Lancer scraping synchrone
+        async function runScrapeSync() {
+            showMessage('⏳ Scraping synchrone en cours...');
+            try {
+                const response = await fetch(`${API_BASE}/scrape`, { method: 'POST' });
+                const result = await response.json();
+                if (response.ok) {
+                    showMessage(`✅ Scraping terminé ! ${result.nb_lignes} lignes insérées.`);
+                    loadData(1); // recharge la première page
+                } else {
+                    throw new Error(result.message || 'Erreur');
+                }
+            } catch (error) {
+                showMessage(`❌ Erreur : ${error.message}`, true);
+            }
+        }
+
+        // Lancer scraping asynchrone
+        async function runScrapeAsync() {
+            showMessage('🚀 Scraping asynchrone lancé. Suivez l’état via la tâche.');
+            try {
+                const response = await fetch(`${API_BASE}/scrape/async`, { method: 'POST' });
+                const result = await response.json();
+                if (response.ok) {
+                    showMessage(`Task ID: ${result.task_id}. Vérifiez l’état avec /scrape/status/${result.task_id}`);
+                    // Option : interroger périodiquement le statut
+                    pollTaskStatus(result.task_id);
+                } else {
+                    throw new Error(result.message || 'Erreur');
+                }
+            } catch (error) {
+                showMessage(`❌ Erreur : ${error.message}`, true);
+            }
+        }
+
+        // Interroger le statut d’une tâche toutes les 2 secondes (optionnel)
+        async function pollTaskStatus(taskId) {
+            const interval = setInterval(async () => {
+                try {
+                    const res = await fetch(`${API_BASE}/scrape/status/${taskId}`);
+                    const data = await res.json();
+                    if (data.status === 'SUCCESS') {
+                        showMessage(`✅ Tâche ${taskId} terminée avec succès !`);
+                        clearInterval(interval);
+                        loadData(1);
+                    } else if (data.status === 'FAILURE') {
+                        showMessage(`❌ Tâche ${taskId} échouée : ${data.result}`, true);
+                        clearInterval(interval);
+                    }
+                } catch (e) {
+                    // ignore
+                }
+            }, 2000);
+        }
+
+        // Afficher les logs
+        async function showLogs() {
+            try {
+                const response = await fetch(`${API_BASE}/logs`);
+                const result = await response.json();
+                if (result.status === 'success') {
+                    logsContent.innerHTML = result.data.map(log => `
+                        <div class="log-entry">
+                            <strong>${log.started_at}</strong> - ${log.status} 
+                            (${log.nb_lignes || 0} lignes)
+                            ${log.erreurs ? `<span class="error-msg">Erreur : ${log.erreurs}</span>` : ''}
+                        </div>
+                    `).join('');
+                    logsPanel.style.display = 'block';
+                } else {
+                    logsContent.innerHTML = 'Aucun log trouvé.';
+                }
+            } catch (error) {
+                logsContent.innerHTML = `Erreur : ${error.message}`;
+            }
+        }
+
+        // Événements
+        loadDataBtn.addEventListener('click', () => {
+            currentFilters.categorie = document.getElementById('categorie').value;
+            currentFilters.matiere = document.getElementById('matiere').value;
+            loadData(1);
+        });
+
+        scrapeAsyncBtn.addEventListener('click', runScrapeAsync);
+        scrapeSyncBtn.addEventListener('click', runScrapeSync);
+        viewLogsBtn.addEventListener('click', () => {
+            if (logsPanel.style.display === 'none') {
+                showLogs();
+            } else {
+                logsPanel.style.display = 'none';
+            }
+        });
+
+        // Chargement initial
+        loadData();
+    </script>
+</body>
+</html>
