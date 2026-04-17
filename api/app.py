@@ -328,6 +328,119 @@ def get_logs():
     return success([l.to_dict() for l in logs])
 
 
+
+# ── EXPORT CSV ──────────────────────────────────────────
+@app.route("/export/csv", methods=["GET"])
+def export_csv():
+    """
+    Exporte toutes les données au format CSV
+    Exemple: http://localhost:5000/export/csv
+    """
+    import io
+    import csv
+    import sys
+    import os
+    sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'db'))
+    from models import Commodity, get_session
+    
+    try:
+        session = get_session()
+        data = session.query(Commodity).all()
+        session.close()
+        
+        # Créer le fichier CSV en mémoire
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # En-têtes (colonnes)
+        writer.writerow(["id", "date", "annee", "mois", "matiere", "categorie", "unite", "prix", "source", "scraped_at"])
+        
+        # Écrire les données
+        for item in data:
+            writer.writerow([
+                item.id,
+                item.date,
+                item.annee,
+                item.mois,
+                item.matiere,
+                item.categorie,
+                item.unite,
+                item.prix,
+                item.source,
+                item.scraped_at
+            ])
+        
+        # Retourner le fichier CSV
+        return output.getvalue(), 200, {
+            'Content-Type': 'text/csv',
+            'Content-Disposition': 'attachment; filename=commodities_export.csv'
+        }
+    except Exception as e:
+        return error(f"Erreur lors de l'export: {str(e)}", 500)
+
+
+# ── EXPORT CSV AVEC FILTRES ─────────────────────────────
+@app.route("/export/csv/filtered", methods=["GET"])
+def export_csv_filtered():
+    """
+    Exporte les données filtrées (par matière, catégorie, année)
+    Exemple: http://localhost:5000/export/csv/filtered?matiere=gold&annee=2024
+    """
+    import io
+    import csv
+    import sys
+    import os
+    sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'db'))
+    from models import Commodity, get_session
+    
+    try:
+        # Récupérer les filtres
+        matiere = request.args.get("matiere")
+        categorie = request.args.get("categorie")
+        annee = request.args.get("annee")
+        
+        session = get_session()
+        query = session.query(Commodity)
+        
+        if matiere:
+            query = query.filter(Commodity.matiere == matiere)
+        if categorie:
+            query = query.filter(Commodity.categorie == categorie)
+        if annee:
+            query = query.filter(Commodity.annee == int(annee))
+        
+        data = query.all()
+        session.close()
+        
+        # Générer le CSV
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["id", "date", "annee", "mois", "matiere", "categorie", "unite", "prix", "source", "scraped_at"])
+        
+        for item in data:
+            writer.writerow([
+                item.id, item.date, item.annee, item.mois, item.matiere,
+                item.categorie, item.unite, item.prix, item.source, item.scraped_at
+            ])
+        
+        # Construire le nom du fichier
+        filename = "commodities"
+        if matiere:
+            filename += f"_{matiere}"
+        if categorie:
+            filename += f"_{categorie}"
+        if annee:
+            filename += f"_{annee}"
+        filename += ".csv"
+        
+        return output.getvalue(), 200, {
+            'Content-Type': 'text/csv',
+            'Content-Disposition': f'attachment; filename={filename}'
+        }
+    except Exception as e:
+        return error(f"Erreur lors de l'export filtré: {str(e)}", 500)
+
+
 # ─────────────────────────────────────────────────────────
 # GESTION DES ERREURS
 # ─────────────────────────────────────────────────────────
