@@ -341,6 +341,16 @@ def server_error(e):
     return error("Erreur serveur interne", 500)
 
 
+
+# ─────────────────────────────────────────────────────────
+# Frontend
+# ─────────────────────────────────────────────────────────
+from flask import send_from_directory
+@app.route('/')
+@app.route('/dashboard')
+def serve_frontend():
+    return send_from_directory('../frontend', 'index.html')
+
 # ─────────────────────────────────────────────────────────
 # LANCEMENT
 # ─────────────────────────────────────────────────────────
