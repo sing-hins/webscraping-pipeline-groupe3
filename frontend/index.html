@@ -354,7 +354,7 @@
 <div id="toast" class="toast"></div>
 
 <script>
-const API_BASE = window.location.origin;
+const API_BASE = 'http://localhost:5000';
 
 let currentPage = 1;
 let limit = 15;
@@ -364,7 +364,9 @@ let autoRefresh = true;
 
 const tableBody = document.getElementById('tableBody');
 const toastDiv = document.getElementById('toast');
+const pagination = document.getElementById('pagination'); // ✅ FIX CRITIQUE
 
+/* ================= TOAST ================= */
 function showToast(message, isError = false) {
     toastDiv.textContent = message;
     toastDiv.style.background = isError ? '#dc2626' : '#10b981';
@@ -372,6 +374,7 @@ function showToast(message, isError = false) {
     setTimeout(() => toastDiv.classList.remove('show'), 3000);
 }
 
+/* ================= METRICS ================= */
 async function loadMetrics() {
     try {
         const res = await fetch(`${API_BASE}/stats`);
@@ -379,7 +382,7 @@ async function loadMetrics() {
 
         const json = await res.json();
 
-        const total = json.data.reduce((a,b)=>a+b.nb_obs,0);
+        const total = json.data.reduce((a,b)=>a+(b.nb_obs || 0),0);
         document.getElementById('totalRecords').innerText = total.toLocaleString();
 
         const gold = json.data.find(m => m.matiere === 'gold');
@@ -391,8 +394,8 @@ async function loadMetrics() {
             }
 
             document.getElementById('lastGoldPrice').innerHTML = `
-                ${gold.prix_moyen?.toFixed(2)} USD/oz
-                <span style="color:${variation>0?'green':'red'}">
+                ${gold.prix_moyen?.toFixed(2) || '—'} USD/oz
+                <span style="color:${variation>0?'#10b981':'#ef4444'}">
                     (${variation.toFixed(2)}%)
                 </span>
             `;
@@ -409,6 +412,7 @@ async function loadMetrics() {
     }
 }
 
+/* ================= DATA ================= */
 async function loadData(page = 1) {
     currentPage = page;
 
@@ -435,9 +439,9 @@ async function loadData(page = 1) {
 
         const result = await res.json();
 
-        renderTable(result.data);
-        renderPagination(result.pagination);
-        updateChart(result.data);
+        renderTable(result.data || []);
+        renderPagination(result.pagination || {});
+        updateChart(result.data || []);
 
     } catch(e) {
         tableBody.innerHTML = `<tr><td colspan="6">${e.message}</td></tr>`;
@@ -445,6 +449,7 @@ async function loadData(page = 1) {
     }
 }
 
+/* ================= TABLE ================= */
 function renderTable(data) {
     if (!data.length) {
         tableBody.innerHTML = '<tr><td colspan="6">Aucune donnée</td></tr>';
@@ -453,21 +458,26 @@ function renderTable(data) {
 
     tableBody.innerHTML = data.map(d => `
         <tr>
-            <td>${d.date}</td>
-            <td><b>${d.matiere}</b></td>
-            <td>${d.categorie}</td>
-            <td>${d.prix.toFixed(4)}</td>
-            <td>${d.unite}</td>
-            <td>${d.source?.slice(0,40)}...</td>
+            <td>${d.date || ''}</td>
+            <td><b>${d.matiere || ''}</b></td>
+            <td>${d.categorie || ''}</td>
+            <td>${d.prix ? d.prix.toFixed(4) : ''}</td> <!-- ✅ FIX -->
+            <td>${d.unite || ''}</td>
+            <td>${d.source ? d.source.slice(0,40)+'…' : ''}</td>
         </tr>
     `).join('');
 }
 
+/* ================= PAGINATION ================= */
 function renderPagination(p) {
-    if (!p || p.pages <= 1) return;
+    if (!p || p.pages <= 1) {
+        pagination.innerHTML = '';
+        return;
+    }
 
     let html = '';
-    for (let i=1;i<=p.pages;i++) {
+
+    for (let i = 1; i <= p.pages; i++) {
         html += `<button class="page-btn ${i===currentPage?'active':''}" data-page="${i}">${i}</button>`;
     }
 
@@ -478,7 +488,7 @@ function renderPagination(p) {
     });
 }
 
-/* 🔥 Moyenne mobile */
+/* ================= MOVING AVERAGE ================= */
 function movingAverage(arr, period=5) {
     return arr.map((_,i)=>{
         if(i<period) return null;
@@ -487,10 +497,15 @@ function movingAverage(arr, period=5) {
     });
 }
 
+/* ================= CHART ================= */
 function updateChart(data) {
     if (!priceChart) {
-        const ctx = document.getElementById('priceChart');
-        priceChart = new Chart(ctx, { type:'line', data:{}, options:{responsive:true}});
+        const ctx = document.getElementById('priceChart').getContext('2d'); // ✅ FIX
+        priceChart = new Chart(ctx, {
+            type:'line',
+            data:{labels:[],datasets:[]},
+            options:{responsive:true}
+        });
     }
 
     const grouped = {};
@@ -499,22 +514,18 @@ function updateChart(data) {
         grouped[d.matiere].push(d);
     });
 
-    const allDates = new Set();
-    Object.values(grouped).forEach(arr=>{
-        arr.forEach(p=>allDates.add(p.date));
-    });
-
-    const labels = Array.from(allDates).sort();
-
+    const datasets = [];
     const colors = ['#3b82f6','#ef4444','#10b981','#f59e0b'];
 
-    let datasets = [];
     let i=0;
+    let labels = [];
 
     for (let matiere in grouped) {
         let sorted = grouped[matiere]
             .sort((a,b)=>new Date(a.date)-new Date(b.date))
             .slice(-30);
+
+        labels = sorted.map(p=>p.date); // ✅ FIX alignement
 
         let prices = sorted.map(p=>p.prix);
 
@@ -539,6 +550,7 @@ function updateChart(data) {
     priceChart.update();
 }
 
+/* ================= SCRAPING ================= */
 async function runScrapeSync() {
     const btn = document.getElementById('scrapeSyncBtn');
     btn.disabled = true;
@@ -582,11 +594,12 @@ function pollTask(id) {
     },3000);
 }
 
+/* ================= EVENTS ================= */
 document.getElementById('loadDataBtn').onclick = ()=>loadData(1);
 document.getElementById('scrapeSyncBtn').onclick = runScrapeSync;
 document.getElementById('scrapeAsyncBtn').onclick = runScrapeAsync;
 
-/* 🔥 RESET */
+/* ================= RESET ================= */
 const resetBtn = document.createElement('button');
 resetBtn.innerText = "Reset";
 resetBtn.className = "btn-secondary";
@@ -598,7 +611,7 @@ resetBtn.onclick = ()=>{
 };
 document.querySelector('.controls').appendChild(resetBtn);
 
-/* 🔄 AUTO REFRESH INTELLIGENT */
+/* ================= AUTO REFRESH ================= */
 setInterval(()=>{
     if(autoRefresh){
         loadData(currentPage);
@@ -606,7 +619,7 @@ setInterval(()=>{
     }
 },30000);
 
-/* INIT */
+/* ================= INIT ================= */
 loadData();
 loadMetrics();
 </script>
