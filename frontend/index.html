@@ -354,274 +354,259 @@
 <div id="toast" class="toast"></div>
 
 <script>
-const API_BASE = 'http://localhost:5000';
+    // Configuration
+    const API_BASE = 'http://localhost:5000';
+    let currentPage = 1;
+    let limit = 15;
+    let currentFilters = { categorie: '', matiere: '', annee: '' };
+    let totalPages = 1;
+    let priceChart = null;
 
-let currentPage = 1;
-let limit = 15;
-let currentFilters = {};
-let priceChart = null;
-let autoRefresh = true;
+    // Éléments DOM
+    const tableBody = document.getElementById('tableBody');
+    const loadDataBtn = document.getElementById('loadDataBtn');
+    const scrapeAsyncBtn = document.getElementById('scrapeAsyncBtn');
+    const scrapeSyncBtn = document.getElementById('scrapeSyncBtn');
+    const viewLogsBtn = document.getElementById('viewLogsBtn');
+    const logsPanel = document.getElementById('logsPanel');
+    const logsContent = document.getElementById('logsContent');
+    const paginationDiv = document.getElementById('pagination');
+    const toastDiv = document.getElementById('toast');
 
-const tableBody = document.getElementById('tableBody');
-const toastDiv = document.getElementById('toast');
-const pagination = document.getElementById('pagination'); // ✅ FIX CRITIQUE
+    // Helper : afficher un toast
+    function showToast(message, isError = false) {
+        toastDiv.textContent = message;
+        toastDiv.style.background = isError ? '#dc2626' : '#10b981';
+        toastDiv.classList.add('show');
+        setTimeout(() => toastDiv.classList.remove('show'), 4000);
+    }
 
-/* ================= TOAST ================= */
-function showToast(message, isError = false) {
-    toastDiv.textContent = message;
-    toastDiv.style.background = isError ? '#dc2626' : '#10b981';
-    toastDiv.classList.add('show');
-    setTimeout(() => toastDiv.classList.remove('show'), 3000);
-}
-
-/* ================= METRICS ================= */
-async function loadMetrics() {
-    try {
-        const res = await fetch(`${API_BASE}/stats`);
-        if (!res.ok) throw new Error("API indisponible");
-
-        const json = await res.json();
-
-        const total = json.data.reduce((a,b)=>a+(b.nb_obs || 0),0);
-        document.getElementById('totalRecords').innerText = total.toLocaleString();
-
-        const gold = json.data.find(m => m.matiere === 'gold');
-
-        if (gold) {
-            let variation = 0;
-            if (gold.prix_min) {
-                variation = ((gold.prix_moyen - gold.prix_min)/gold.prix_min)*100;
+    // Charger les métriques (statistiques)
+    async function loadMetrics() {
+        try {
+            const res = await fetch(`${API_BASE}/stats`);
+            const json = await res.json();
+            if (json.status === 'success') {
+                const total = json.data.reduce((acc, m) => acc + m.nb_obs, 0);
+                document.getElementById('totalRecords').innerText = total.toLocaleString();
+                const gold = json.data.find(m => m.matiere === 'gold');
+                if (gold) document.getElementById('lastGoldPrice').innerText = `${gold.prix_moyen?.toFixed(2) || '—'} USD/oz`;
+                
+                const logsRes = await fetch(`${API_BASE}/logs?limit=1`);
+                const logsJson = await logsRes.json();
+                if (logsJson.status === 'success' && logsJson.data.length > 0) {
+                    const last = logsJson.data[0];
+                    document.getElementById('lastScrape').innerText = last.started_at ? new Date(last.started_at).toLocaleString() : '—';
+                }
             }
+        } catch(e) { console.error(e); }
+    }
 
-            document.getElementById('lastGoldPrice').innerHTML = `
-                ${gold.prix_moyen?.toFixed(2) || '—'} USD/oz
-                <span style="color:${variation>0?'#10b981':'#ef4444'}">
-                    (${variation.toFixed(2)}%)
-                </span>
-            `;
+    // Charger les données avec filtres (version corrigée)
+    async function loadData(page = 1) {
+        currentPage = page;
+        // Récupérer les valeurs actuelles des champs
+        const categorieValue = document.getElementById('categorie').value;
+        const matiereValue = document.getElementById('matiere').value;
+        const anneeValue = document.getElementById('annee').value;
+        
+        // Mettre à jour currentFilters
+        currentFilters.categorie = categorieValue;
+        currentFilters.matiere = matiereValue;
+        currentFilters.annee = anneeValue;
+        
+        const params = new URLSearchParams();
+        params.append('page', currentPage);
+        params.append('limit', limit);
+        if (currentFilters.categorie) params.append('categorie', currentFilters.categorie);
+        if (currentFilters.matiere) params.append('matiere', currentFilters.matiere);
+        if (currentFilters.annee) params.append('annee', currentFilters.annee);
+        
+        console.log('Requête API :', `${API_BASE}/data?${params.toString()}`); // Débogage
+        
+        try {
+            const response = await fetch(`${API_BASE}/data?${params.toString()}`);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const result = await response.json();
+            if (result.status === 'success') {
+                renderTable(result.data);
+                renderPagination(result.pagination);
+                updateChart(result.data);
+            } else {
+                throw new Error(result.message);
+            }
+        } catch (error) {
+            tableBody.innerHTML = `<tr><td colspan="6">Erreur : ${error.message}</td></tr>`;
+            showToast(error.message, true);
         }
+    }
 
-        const logs = await fetch(`${API_BASE}/logs?limit=1`).then(r=>r.json());
-        if (logs.data?.length) {
-            document.getElementById('lastScrape').innerText =
-                new Date(logs.data[0].started_at).toLocaleString();
+    // Remplir le tableau
+    function renderTable(data) {
+        if (!data || data.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="6">Aucune donnée trouvée</td></tr>';
+            return;
         }
-
-    } catch(e) {
-        console.error(e);
-    }
-}
-
-/* ================= DATA ================= */
-async function loadData(page = 1) {
-    currentPage = page;
-
-    tableBody.innerHTML = '<tr><td colspan="6">⏳ Chargement...</td></tr>';
-
-    currentFilters = {
-        categorie: document.getElementById('categorie').value,
-        matiere: document.getElementById('matiere').value,
-        annee: document.getElementById('annee').value
-    };
-
-    const params = new URLSearchParams({
-        page: currentPage,
-        limit
-    });
-
-    Object.entries(currentFilters).forEach(([k,v])=>{
-        if(v) params.append(k,v);
-    });
-
-    try {
-        const res = await fetch(`${API_BASE}/data?${params}`);
-        if (!res.ok) throw new Error("Erreur API");
-
-        const result = await res.json();
-
-        renderTable(result.data || []);
-        renderPagination(result.pagination || {});
-        updateChart(result.data || []);
-
-    } catch(e) {
-        tableBody.innerHTML = `<tr><td colspan="6">${e.message}</td></tr>`;
-        showToast(e.message, true);
-    }
-}
-
-/* ================= TABLE ================= */
-function renderTable(data) {
-    if (!data.length) {
-        tableBody.innerHTML = '<tr><td colspan="6">Aucune donnée</td></tr>';
-        return;
+        tableBody.innerHTML = data.map(item => `
+            <tr>
+                <td>${item.date || ''}</td>
+                <td><strong>${item.matiere || ''}</strong></td>
+                <td>${item.categorie || ''}</td>
+                <td>${item.prix?.toFixed(4) || ''}</td>
+                <td>${item.unite || ''}</td>
+                <td style="font-size:0.8rem">${item.source ? item.source.substring(0, 40) + '…' : ''}</td>
+            </tr>
+        `).join('');
     }
 
-    tableBody.innerHTML = data.map(d => `
-        <tr>
-            <td>${d.date || ''}</td>
-            <td><b>${d.matiere || ''}</b></td>
-            <td>${d.categorie || ''}</td>
-            <td>${d.prix ? d.prix.toFixed(4) : ''}</td> <!-- ✅ FIX -->
-            <td>${d.unite || ''}</td>
-            <td>${d.source ? d.source.slice(0,40)+'…' : ''}</td>
-        </tr>
-    `).join('');
-}
-
-/* ================= PAGINATION ================= */
-function renderPagination(p) {
-    if (!p || p.pages <= 1) {
-        pagination.innerHTML = '';
-        return;
-    }
-
-    let html = '';
-
-    for (let i = 1; i <= p.pages; i++) {
-        html += `<button class="page-btn ${i===currentPage?'active':''}" data-page="${i}">${i}</button>`;
-    }
-
-    pagination.innerHTML = html;
-
-    document.querySelectorAll('.page-btn').forEach(btn=>{
-        btn.onclick = ()=>loadData(+btn.dataset.page);
-    });
-}
-
-/* ================= MOVING AVERAGE ================= */
-function movingAverage(arr, period=5) {
-    return arr.map((_,i)=>{
-        if(i<period) return null;
-        let slice = arr.slice(i-period,i);
-        return slice.reduce((a,b)=>a+b,0)/period;
-    });
-}
-
-/* ================= CHART ================= */
-function updateChart(data) {
-    if (!priceChart) {
-        const ctx = document.getElementById('priceChart').getContext('2d'); // ✅ FIX
-        priceChart = new Chart(ctx, {
-            type:'line',
-            data:{labels:[],datasets:[]},
-            options:{responsive:true}
+    // Pagination
+    function renderPagination(pagination) {
+        if (!pagination || pagination.pages <= 1) {
+            paginationDiv.innerHTML = '';
+            return;
+        }
+        let html = '';
+        for (let i = 1; i <= pagination.pages; i++) {
+            html += `<button class="page-btn ${i === currentPage ? 'active' : ''}" data-page="${i}">${i}</button>`;
+        }
+        paginationDiv.innerHTML = html;
+        document.querySelectorAll('.page-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const page = parseInt(e.target.dataset.page);
+                loadData(page);
+            });
         });
     }
 
-    const grouped = {};
-    data.forEach(d=>{
-        if(!grouped[d.matiere]) grouped[d.matiere]=[];
-        grouped[d.matiere].push(d);
+    // Mettre à jour le graphique
+    function updateChart(data) {
+        if (!priceChart) {
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            priceChart = new Chart(ctx, {
+                type: 'line',
+                data: { labels: [], datasets: [] },
+                options: { responsive: true, maintainAspectRatio: true }
+            });
+        }
+        const grouped = {};
+        data.forEach(item => {
+            if (!grouped[item.matiere]) grouped[item.matiere] = [];
+            grouped[item.matiere].push({ date: item.date, prix: item.prix });
+        });
+        const datasets = [];
+        const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6'];
+        let i = 0;
+        for (const [matiere, points] of Object.entries(grouped)) {
+            const sorted = points.sort((a,b) => new Date(a.date) - new Date(b.date)).slice(-30);
+            datasets.push({
+                label: matiere,
+                data: sorted.map(p => p.prix),
+                borderColor: colors[i % colors.length],
+                fill: false,
+                tension: 0.2
+            });
+            i++;
+        }
+        const labels = Object.values(grouped)[0]?.slice(-30).map(p => p.date) || [];
+        priceChart.data.labels = labels;
+        priceChart.data.datasets = datasets;
+        priceChart.update();
+    }
+
+    // Scraping synchrone
+    async function runScrapeSync() {
+        showToast('⏳ Scraping synchrone en cours...');
+        try {
+            const response = await fetch(`${API_BASE}/scrape`, { method: 'POST' });
+            const result = await response.json();
+            if (response.ok) {
+                showToast(`✅ Scraping terminé ! ${result.nb_lignes} lignes insérées.`);
+                loadData(1);
+                loadMetrics();
+            } else {
+                throw new Error(result.message);
+            }
+        } catch (error) {
+            showToast(`❌ Erreur : ${error.message}`, true);
+        }
+    }
+
+    // Scraping asynchrone
+    async function runScrapeAsync() {
+        showToast('🚀 Scraping asynchrone lancé');
+        try {
+            const response = await fetch(`${API_BASE}/scrape/async`, { method: 'POST' });
+            const result = await response.json();
+            if (response.ok) {
+                showToast(`Task ID: ${result.task_id}. Surveillance...`);
+                pollTaskStatus(result.task_id);
+            } else {
+                throw new Error(result.message);
+            }
+        } catch (error) {
+            showToast(`❌ Erreur : ${error.message}`, true);
+        }
+    }
+
+    async function pollTaskStatus(taskId) {
+        const interval = setInterval(async () => {
+            try {
+                const res = await fetch(`${API_BASE}/scrape/status/${taskId}`);
+                const data = await res.json();
+                if (data.status === 'SUCCESS') {
+                    showToast(`✅ Tâche ${taskId} terminée !`);
+                    clearInterval(interval);
+                    loadData(1);
+                    loadMetrics();
+                } else if (data.status === 'FAILURE') {
+                    showToast(`❌ Tâche échouée : ${data.result}`, true);
+                    clearInterval(interval);
+                }
+            } catch(e) {}
+        }, 3000);
+    }
+
+    // Afficher les logs
+    async function showLogs() {
+        try {
+            const response = await fetch(`${API_BASE}/logs`);
+            const result = await response.json();
+            if (result.status === 'success') {
+                logsContent.innerHTML = result.data.map(log => `
+                    <div class="log-entry">
+                        <strong>${new Date(log.started_at).toLocaleString()}</strong> - ${log.status}
+                        (${log.nb_lignes || 0} lignes)
+                        ${log.erreurs ? `<span style="color:red">Erreur : ${log.erreurs}</span>` : ''}
+                    </div>
+                `).join('');
+                logsPanel.classList.add('show');
+            } else {
+                logsContent.innerHTML = 'Aucun log trouvé.';
+            }
+        } catch (error) {
+            logsContent.innerHTML = `Erreur : ${error.message}`;
+        }
+    }
+
+    // Événements
+    loadDataBtn.addEventListener('click', () => {
+        loadData(1);  // recharge avec les nouveaux filtres
+    });
+    scrapeAsyncBtn.addEventListener('click', runScrapeAsync);
+    scrapeSyncBtn.addEventListener('click', runScrapeSync);
+    viewLogsBtn.addEventListener('click', () => {
+        if (logsPanel.classList.contains('show')) {
+            logsPanel.classList.remove('show');
+        } else {
+            showLogs();
+        }
     });
 
-    const datasets = [];
-    const colors = ['#3b82f6','#ef4444','#10b981','#f59e0b'];
-
-    let i=0;
-    let labels = [];
-
-    for (let matiere in grouped) {
-        let sorted = grouped[matiere]
-            .sort((a,b)=>new Date(a.date)-new Date(b.date))
-            .slice(-30);
-
-        labels = sorted.map(p=>p.date); // ✅ FIX alignement
-
-        let prices = sorted.map(p=>p.prix);
-
-        datasets.push({
-            label: matiere,
-            data: prices,
-            borderColor: colors[i%colors.length],
-            tension:0.3
-        });
-
-        datasets.push({
-            label: matiere+" (MA)",
-            data: movingAverage(prices),
-            borderDash:[5,5],
-            borderColor: colors[i%colors.length]
-        });
-
-        i++;
-    }
-
-    priceChart.data = { labels, datasets };
-    priceChart.update();
-}
-
-/* ================= SCRAPING ================= */
-async function runScrapeSync() {
-    const btn = document.getElementById('scrapeSyncBtn');
-    btn.disabled = true;
-
-    showToast("⏳ Scraping...");
-
-    try {
-        const res = await fetch(`${API_BASE}/scrape`, {method:'POST'});
-        const data = await res.json();
-
-        showToast(`✅ ${data.nb_lignes} lignes`);
-        loadData(1);
-        loadMetrics();
-
-    } catch(e) {
-        showToast("Erreur scraping", true);
-    }
-
-    btn.disabled = false;
-}
-
-async function runScrapeAsync() {
-    showToast("🚀 Tâche lancée");
-
-    const res = await fetch(`${API_BASE}/scrape/async`, {method:'POST'});
-    const data = await res.json();
-
-    pollTask(data.task_id);
-}
-
-function pollTask(id) {
-    const interval = setInterval(async ()=>{
-        const res = await fetch(`${API_BASE}/scrape/status/${id}`);
-        const data = await res.json();
-
-        if (data.status === 'SUCCESS') {
-            showToast("✅ Terminé");
-            clearInterval(interval);
-            loadData(1);
-        }
-    },3000);
-}
-
-/* ================= EVENTS ================= */
-document.getElementById('loadDataBtn').onclick = ()=>loadData(1);
-document.getElementById('scrapeSyncBtn').onclick = runScrapeSync;
-document.getElementById('scrapeAsyncBtn').onclick = runScrapeAsync;
-
-/* ================= RESET ================= */
-const resetBtn = document.createElement('button');
-resetBtn.innerText = "Reset";
-resetBtn.className = "btn-secondary";
-resetBtn.onclick = ()=>{
-    document.getElementById('categorie').value='';
-    document.getElementById('matiere').value='';
-    document.getElementById('annee').value='';
-    loadData(1);
-};
-document.querySelector('.controls').appendChild(resetBtn);
-
-/* ================= AUTO REFRESH ================= */
-setInterval(()=>{
-    if(autoRefresh){
-        loadData(currentPage);
-        loadMetrics();
-    }
-},30000);
-
-/* ================= INIT ================= */
-loadData();
-loadMetrics();
+    // Chargement initial
+    loadData();
+    loadMetrics();
+    // Auto-refresh toutes les 30 secondes (optionnel, peut être désactivé)
+    setInterval(() => { loadData(currentPage); loadMetrics(); }, 30000);
 </script>
 </body>
 </html>
