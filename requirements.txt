@@ -17,6 +17,7 @@ flask==3.0.2
 flask-swagger-ui==4.11.1
 flask-cors==4.0.0
 prometheus-flask-exporter==0.23.0
+flask-cors
 
 
 # Celery + Redis
@@ -30,6 +31,8 @@ python-dotenv==1.0.1
 # Tests
 pytest==8.1.1
 pytest-cov==5.0.0
+
+
 
 
 
