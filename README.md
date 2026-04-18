@@ -169,7 +169,7 @@ Requête flask_http_request_total avec résultat
 Dashboard Grafana avec métrique flask_http_request_total
 
 Export CSV
-[Ajouter photo : export_csv.png]
+![alt text](image-4.png)
 Téléchargement du fichier CSV depuis http://localhost:5000/export/csv
 
 Dashboard Frontend 
