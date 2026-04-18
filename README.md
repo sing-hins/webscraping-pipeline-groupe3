@@ -19,9 +19,9 @@ Ce projet est un **pipeline complet de collecte et d'exploitation de données** 
 
 | Membre | Rôle | Responsabilités |
 |--------|------|-----------------|
-| **sing-hins** | DevOps / Monitoring | Docker, Celery, Prometheus, Grafana |
-| **angedoubleyao-droid** | Data Engineer / Backend | Scraping, nettoyage, API, base de données |
-
+| **sing-hins** : SINGIBE HINSALBE | Data Engineer / Backend | Scraping, nettoyage, API |
+| **angedoubleyao-droid** : YAO EVRARD | Backend Developer | API, base de données /  Grafana  |
+| **znrissf-byte** : ZANIRA ISSOUFOU | DevOps / Monitoring | Docker, Celery, Prometheus|
 ---
 
 ## 🛠️ Technologies utilisées
@@ -40,7 +40,7 @@ Ce projet est un **pipeline complet de collecte et d'exploitation de données** 
 
 ---
 
-## 📊 Données collectées
+## Données collectées
 
 - **Matières** : gold, silver, copper, platinum, crude_oil, natural_gas, brent_crude, corn, wheat, coffee, cocoa, sugar
 - **Volume** : 5 815 lignes après nettoyage
@@ -49,37 +49,44 @@ Ce projet est un **pipeline complet de collecte et d'exploitation de données** 
 
 ---
 
-## 🏗️ Architecture du projet
+## 📁 Architecture du projet
 
-webscraping-pipeline-groupe3/
-├── api/ # API Flask
-│ ├── static/ # Fichiers statiques
-│ │ └── swagger.yaml # Documentation Swagger
-│ ├── init.py
-│ └── app.py # Routes de l'API
-├── db/ # Base de données
-│ ├── import_data.py # Script d'import des données
-│ ├── init_db.py # Initialisation des tables
-│ └── models.py # Modèles SQLAlchemy
-├── frontend/ # Interface utilisateur
-│ └── index.html # Dashboard frontend
-├── monitoring/ # Configuration monitoring
-│ └── prometheus.yml # Configuration Prometheus
-├── scraper/ # Scraping et nettoyage
-│ ├── init.py
-│ ├── cleaner.py # Nettoyage des données
-│ ├── scraper.py # Scraping web
-│ └── raw_data.json # Données brutes
-├── tasks/ # Tâches Celery
-│ └── celery_tasks.py # Configuration Celery
-├── Dockerfile # Construction de l'image Docker
-├── docker-compose.yml # Orchestration des services
-├── requirements.txt # Dépendances Python
-├── .env # Variables d'environnement
-└── README.md # Documentation
+```bash
+📦 webscraping-pipeline-groupe3/
+│
+├── 📁 api/
+│   ├── 📁 static/
+│   │   └── 📄 swagger.yaml
+│   ├── 📄 __init__.py
+│   └── 📄 app.py
+│
+├── 📁 db/
+│   ├── 📄 import_data.py
+│   ├── 📄 init_db.py
+│   └── 📄 models.py
+│
+├── 📁 frontend/
+│   └── 📄 index.html
+│
+├── 📁 monitoring/
+│   └── 📄 prometheus.yml
+│
+├── 📁 scraper/
+│   ├── 📄 __init__.py
+│   ├── 📄 cleaner.py
+│   ├── 📄 scraper.py
+│   └── 📄 raw_data.json
+│
+├── 📁 tasks/
+│   └── 📄 celery_tasks.py
+│
+├── 🐳 Dockerfile
+├── 📦 docker-compose.yml
+├── 📋 requirements.txt
+├── 🔐 .env
+└── 📖 README.md
 
-
----
+```
 
 ## 🚀 Installation et lancement
 
@@ -138,22 +145,23 @@ docker ps
 
 
 ## API REST – Données JSON
-
+![alt text](image.png)
 Exemple de réponse de l'API sur http://localhost:5000/data
 
-Swagger – Documentation API
+## Swagger – Documentation API
 [Ajouter photo : swagger.png]
 Documentation interactive de l'API sur http://localhost:5000/api/docs
 
-Flower – Surveillance Celery
-[Ajouter photo : flower.png]
+## Flower – Surveillance Celery
+![alt text](image-3.png)
 Worker Celery en ligne et tâches traitées sur http://localhost:5555
 
-Prometheus – Métriques
-[Ajouter photo : prometheus_targets.png]
+## Prometheus – Métriques
+![alt text](image-1.png)
+
 Cible flask_api avec statut "UP" sur http://localhost:9090/targets
 
-[Ajouter photo : prometheus_query.png]
+![alt text](image-2.png)
 Requête flask_http_request_total avec résultat
 
 ## Grafana – Dashboard Monitoring
@@ -164,6 +172,7 @@ Export CSV
 [Ajouter photo : export_csv.png]
 Téléchargement du fichier CSV depuis http://localhost:5000/export/csv
 
-Dashboard Frontend (Streamlit)
-[Ajouter photo : streamlit_dashboard.png]
+Dashboard Frontend 
+![alt text](<1er partie_dashboard.jpeg>)
+![alt text](<2e partie .jpeg>)
 Visualisation interactive des prix sur http://localhost:8501
